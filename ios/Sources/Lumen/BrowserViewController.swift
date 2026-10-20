@@ -29,7 +29,10 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
             await checkForUBOUpdate()
         }
         NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { await self?.checkForUBOUpdate() }
+            Task {
+                await self?.disarmResume()
+                await self?.checkForUBOUpdate()
+            }
         }
         NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             Task { await self?.rememberPlaying() }
@@ -43,18 +46,31 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
 
     /// WebKit itself pauses a playing <video> when the app goes to the background or the screen locks
     /// (measured in the simulator: no pause() call from the page, only the pause event). With the
-    /// playback audio session the app may play on, so the video is started again right after
-    /// (simulator: resumed after 0.3 s and kept playing in the background).
+    /// playback audio session the app may play on, so the video is started again:
+    /// 1. at once, by backgroundPlayScript, which the app arms from the moment it stops being active
+    ///    until 3 s after it is in the background (waiting 0.3 s first left a short gap in the sound
+    ///    that the owner heard; now about 0.05 s in the simulator). The two moments can be seconds
+    ///    apart, e.g. in the app switcher;
+    /// 2. as a fallback, from resumeInBackground below.
     private var wasPlaying = false
 
+    private func disarmResume() async {
+        _ = try? await webView?.callAsyncJavaScript("window.__lumenLeavingUntil = 0;", contentWorld: .page)
+    }
+
     private func rememberPlaying() async {
-        let playing = try? await webView?.callAsyncJavaScript(
-            "const v = document.querySelector('video'); return !!v && !v.paused && !v.ended;", contentWorld: .page)
+        let playing = try? await webView?.callAsyncJavaScript("""
+            const v = document.querySelector('video');
+            const playing = !!v && !v.paused && !v.ended;
+            if (playing) window.__lumenLeavingUntil = Number.MAX_SAFE_INTEGER;
+            return playing;
+            """, contentWorld: .page)
         wasPlaying = playing as? Bool ?? false
     }
 
     private func resumeInBackground() async {
         guard wasPlaying, let webView else { return }
+        _ = try? await webView.callAsyncJavaScript("window.__lumenLeavingUntil = Date.now() + 3000;", contentWorld: .page)
         for delay in [0.3, 1.0, 2.0] {
             try? await Task.sleep(for: .seconds(delay))
             let playing = try? await webView.callAsyncJavaScript("""
@@ -108,11 +124,23 @@ final class BrowserViewController: UIViewController, WKNavigationDelegate, WKUID
         webView.load(URLRequest(url: Self.homeURL))
     }
 
-    /// YouTube pauses a video when the page says it is hidden (screen locked, another app in front).
-    /// This keeps the page "visible" on YouTube so the music goes on.
+    /// YouTube pauses a video when the page says it is hidden (screen locked, another app in front), so
+    /// the page stays "visible" on YouTube. And while the app is leaving the screen (armed by
+    /// rememberPlaying), a pause that no page script asked for is WebKit's own background pause: play on
+    /// at once. A pause from the lock screen button goes through YouTube's script, so it is respected,
+    /// and outside those 3 s (a call, another music app) nothing is resumed.
     static let backgroundPlayScript = """
         (() => {
           if (!/(^|\\.)youtube\\.com$/.test(location.hostname)) return;
+          let scriptPauseAt = 0;
+          const pause = HTMLMediaElement.prototype.pause;
+          HTMLMediaElement.prototype.pause = function () { scriptPauseAt = Date.now(); return pause.apply(this, arguments); };
+          document.addEventListener('pause', (e) => {
+            const media = e.target;
+            if (!(media instanceof HTMLMediaElement)) return;
+            if (Date.now() > (window.__lumenLeavingUntil || 0) || Date.now() - scriptPauseAt < 500) return;
+            media.play().catch(() => {});
+          }, true);
           for (const [name, value] of [['hidden', false], ['webkitHidden', false],
                                        ['visibilityState', 'visible'], ['webkitVisibilityState', 'visible']]) {
             Object.defineProperty(Document.prototype, name, { get: () => value, configurable: true });

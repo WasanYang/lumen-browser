@@ -96,6 +96,10 @@ Monorepo: one folder per platform, shared files in `shared/`.
 - When the app goes to the background, WebKit pauses the <video> itself (pause event with no page `pause()` call),
   even with sound on and `document.hidden` faked. Calling `play()` from the app 0.3 s after
   `didEnterBackground` resumed it and it kept playing (simulator). A muted video is not allowed to play on.
+  The owner heard that 0.3 s as a short cut in the sound on their iPhone. Now the page itself calls `play()` in its
+  `pause` listener when the pause came from no page script, armed from `willResignActive` until 3 s after
+  `didEnterBackground` (the two were up to 6 s apart in the simulator): gap about 0.05 s. Lock-screen pause goes
+  through YouTube's script (`pause()`), so it is not undone.
 - The Simulator app is not in Xcode 27.1's bundle; `simctl` runs the app headless and `--console-pty` prints its output.
 
 ## Next steps the owner has in mind
