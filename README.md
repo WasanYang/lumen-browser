@@ -14,6 +14,12 @@ dotnet run -c Release
 ```
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
 ```
+ทำตัวติดตั้ง (ต้องมี Inno Setup 6: `winget install JRSoftware.InnoSetup`):
+```
+powershell -ExecutionPolicy Bypass -File installer\build.ps1
+```
+ได้ไฟล์ `installer\Output\MiniBrowser-Setup-<version>.exe` ติดตั้งแบบรายผู้ใช้ (ไม่ต้องใช้สิทธิ์ admin)
+ถอนการติดตั้งแล้วข้อมูลการล็อกอินใน `%LOCALAPPDATA%\MiniBrowser` ยังอยู่
 
 ## คีย์ลัด
 | คีย์ | ทำอะไร |
