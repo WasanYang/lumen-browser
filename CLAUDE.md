@@ -7,6 +7,9 @@ Monorepo: one folder per platform, shared files in `shared/`.
 - Reply in Thai. Answer briefly first; the owner asks follow-ups.
 - The owner often asks "can this be done?" before deciding. Explain and wait; change code only when asked.
 - Never commit or push until the owner has reviewed and said so. No `Co-Authored-By` or Claude attribution in commits.
+- Commit author is always `Wasan <33808589+WasanYang@users.noreply.github.com>` (owner, 20 Oct 2026), on every machine.
+  Before the first commit in a clone, check `git config user.email`; if it differs, set it for this repo:
+  `git config user.name "Wasan"` and `git config user.email "33808589+WasanYang@users.noreply.github.com"`.
 
 ## Layout
 - `windows/`: C# / WPF / WebView2 (.NET 10). `AdBlock.cs` (network filters + page CSS + YouTube ad skip script),
@@ -14,11 +17,21 @@ Monorepo: one folder per platform, shared files in `shared/`.
   `installer/` holds the Inno Setup script and `build.ps1`.
 - `shared/`: `Assets/` (logo.svg, logo-mark.svg, logo.ico) and `blocklist.txt`. The csproj links both
   (`blocklist.txt` is copied next to the exe, `logo.ico` is the window/exe icon).
+  `shared/LumenCore/`: Swift package (macOS 14, iOS 17) with the ad blocking used by `macos/` and later `ios/`:
+  `AdBlock.swift` (blocklist.txt → WKContentRuleList, uBO Lite's YouTube scriptlets, page CSS, the 16x/skip page
+  script; it reports where to press skip, each app presses) and `UBOLite.swift` (picks the newest uBO copy, bundled
+  or downloaded; `UBOLiteUpdater` checks GitHub (`checkIfDue`, `status`) and downloads the newest built files
+  (`update`) as separate steps). No AppKit/UIKit in it.
+  Check it still builds for iOS: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -scheme LumenCore
+  -destination 'generic/platform=iOS' build` in `shared/LumenCore` (Xcode 27.1 is installed but not the selected
+  developer dir, so pass DEVELOPER_DIR instead of running xcode-select).
 - `macos/`: the Mac app is named **Lumen** (owner, 20 Oct 2026; Windows keeps MiniBrowser until the owner renames it
   there). The bundle ID stays `io.github.wasanyang.minibrowser` because YouTube logins are stored under it.
-  One window. Swift package `Lumen` built with the Command Line Tools only (no Xcode on the owner's Mac yet).
-  `AdBlock.swift` (blocklist.txt → WKContentRuleList, uBO Lite's YouTube scriptlets, page CSS, fallback skip with real
-  NSEvent clicks; meant to be reused by iOS), `BrowserWindow.swift`, `SelfTest.swift`. Build `macos/build.sh` →
+  One window. Swift package `Lumen` (depends on `../shared/LumenCore`), built with the Command Line Tools alone.
+  `PageClick.swift` (real NSEvent click on YouTube's skip button), `BrowserWindow.swift`, `SelfTest.swift`,
+  `main.swift` (menus; checks GitHub for a newer uBO at most once a day, at start and hourly). The top bar's
+  ↻ uBO button shows a green dot when a newer version exists; downloading happens only when the owner presses it
+  (owner's choice, 20 Oct 2026), then it offers a restart. Build `macos/build.sh` →
   `macos/build/Lumen.app` (copies the uBO scriptlet files from `windows/Extensions/uBOLite`, renders the icon
   from `shared/Assets/logo.svg` with `make-icon.swift`). `build.sh --install` replaces `/Applications/Lumen.app`,
   which the owner uses day to day.

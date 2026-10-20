@@ -1,4 +1,5 @@
 import AppKit
+import LumenCore
 import WebKit
 
 /// `Lumen --selftest`: proves the blocker inside a real WKWebView, prints PASS/FAIL lines and
@@ -6,7 +7,9 @@ import WebKit
 /// pages; never the user's profile.
 /// 1. With the blocker: ad URLs fail, normal URLs load, ad slots are hidden.
 /// 2. Without it (control): every URL loads, so a failure in 1 is the blocker, not the network.
-/// 3. Skip click: a fake YouTube player shows a skip button. The real page script must report it,
+/// 3. uBO Lite: its scriptlets take the ad fields out of a fake YouTube page's player data.
+/// 4. uBO update: the newest version downloads from GitHub into a throw-away folder, complete.
+/// 5. Skip click: a fake YouTube player shows a skip button. The real page script must report it,
 ///    the app must click it, and the page must see a trusted click while the ad is muted at 16x.
 @MainActor
 final class SelfTest: NSObject, WKNavigationDelegate {
@@ -38,7 +41,7 @@ final class SelfTest: NSObject, WKNavigationDelegate {
     let appRelay = ScriptMessageRelay()
     let pageRelay = ScriptMessageRelay()
     var loaded: CheckedContinuation<Void, Error>?
-    var appEvents: [AdBlock.Event] = []
+    var appEvents: [String] = []
     var pageReport: [String: Any]?
     var failures = 0
 
@@ -46,7 +49,17 @@ final class SelfTest: NSObject, WKNavigationDelegate {
         window.title = "Lumen self-test"
         window.center()
         window.makeKeyAndOrderFront(nil)
-        appRelay.onMessage = { [weak self] in if let event = AdBlock.handle($0) { self?.appEvents.append(event) } }
+        appRelay.onMessage = { [weak self] message in
+            switch AdBlock.handle(message) {
+            case .adStart:
+                self?.appEvents.append("ad-start")
+            case let .skip(x, y):
+                guard let view = message.webView else { return }
+                self?.appEvents.append(PageClick.realClick(in: view, x: x, y: y) ? "clicked" : "missed")
+            case nil:
+                break
+            }
+        }
         pageRelay.onMessage = { [weak self] in self?.pageReport = $0.body as? [String: Any] }
         do {
             let storeURL = FileManager.default.temporaryDirectory.appendingPathComponent("minibrowser-selftest-rules")
@@ -55,6 +68,7 @@ final class SelfTest: NSObject, WKNavigationDelegate {
             check(rules != nil, "blocklist compiled (\(AdBlock.blocklistURL()?.path ?? "not found"))")
             try await blockingPhase(rules: rules)
             try await uBOPhase(rules: rules)
+            await updatePhase()
             try await skipPhase(rules: rules, hidden: false)
             // The usual case: YouTube plays in the background while another app is in front.
             try await skipPhase(rules: rules, hidden: true)
@@ -125,8 +139,8 @@ final class SelfTest: NSObject, WKNavigationDelegate {
                                   adSlots: r.adSlots !== undefined, video: !!r.videoDetails };
             </script></body></html>
             """
-        print("-- uBlock Origin Lite \(AdBlock.uBOVersion() ?? "missing")")
-        check(AdBlock.uBOScripts().count == 2, "uBO scriptlets loaded for both worlds")
+        print("-- uBlock Origin Lite \(AdBlock.uBOCopy?.version ?? "missing")  \(AdBlock.uBOCopy?.folder.path ?? "")")
+        check(AdBlock.uBOCopy.map { AdBlock.scripts(from: $0).count } == 2, "uBO scriptlets loaded for both worlds")
         let view = makeWebView(blocker: true, rules: rules)
         try await load(page, base: "https://www.youtube.com/watch?v=selftest", in: view)
         let report = try await view.callAsyncJavaScript("return window.__report;", contentWorld: .page) as? [String: Any]
@@ -135,7 +149,27 @@ final class SelfTest: NSObject, WKNavigationDelegate {
         check(report?["video"] as? Bool == true, "video data kept")
     }
 
-    // MARK: Phase 3
+    /// Downloads into a temporary store as if nothing were on the device, then checks the copy is
+    /// complete, usable, and that a second check reports it as up to date.
+    func updatePhase() async {
+        print("-- uBlock Origin Lite update from GitHub")
+        let store = FileManager.default.temporaryDirectory.appendingPathComponent("lumen-selftest-ubol", isDirectory: true)
+        try? FileManager.default.removeItem(at: store)
+        defer { try? FileManager.default.removeItem(at: store) }
+        // Its own defaults, so the test never changes what the app's update button shows.
+        let defaults = UserDefaults(suiteName: "lumen-selftest")!
+        defer { defaults.removePersistentDomain(forName: "lumen-selftest") }
+        let first = await UBOLiteUpdater.update(store: store, have: nil, defaults: defaults)
+        guard case let .downloaded(version) = first else { return check(false, "download newest version  \(first)") }
+        check(true, "downloaded \(version)")
+        let copy = UBOLite.copy(at: store.appendingPathComponent(version))
+        check(copy?.version == version, "downloaded copy is complete  \(copy?.folder.path ?? "missing")")
+        check(copy.map { AdBlock.scripts(from: $0).count } == 2, "downloaded scriptlets build scripts for both worlds")
+        let second = await UBOLiteUpdater.update(store: store, have: version, defaults: defaults)
+        check(second == .upToDate(version), "second check is up to date  \(second)")
+    }
+
+    // MARK: Phase 5
 
     func skipPhase(rules: WKContentRuleList?, hidden: Bool) async throws {
         appEvents = []
@@ -166,8 +200,8 @@ final class SelfTest: NSObject, WKNavigationDelegate {
             contentWorld: .page) as? [String: Any]
 
         print(hidden ? "-- YouTube skip, app hidden" : "-- YouTube skip, window in front")
-        check(appEvents.contains(.adStart), "app was told an ad started")
-        check(appEvents.contains(.skipClicked), "app clicked the skip button")
+        check(appEvents.contains("ad-start"), "app was told an ad started")
+        check(appEvents.contains("clicked"), "app clicked the skip button")
         check(pageReport != nil, "skip button received the click")
         check(pageReport?["trusted"] as? Bool == true, "click was trusted (isTrusted = true)")
         check(pageReport?["muted"] as? Bool == true, "ad was muted during the ad")

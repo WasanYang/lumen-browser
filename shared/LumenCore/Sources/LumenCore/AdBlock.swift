@@ -1,17 +1,17 @@
-import AppKit
+import Foundation
 import WebKit
 
 /// Layers, in the order they act:
 /// 1. Network: shared/blocklist.txt is compiled into a WKContentRuleList, so WebKit drops matching
 ///    requests itself and nothing reaches Swift.
-/// 2. uBlock Origin Lite's YouTube scriptlets (the files the Windows build loads as an extension).
-///    They take the ads out of YouTube's player data, so most ads never start.
+/// 2. uBlock Origin Lite's YouTube scriptlets (see UBOLite). They take the ads out of YouTube's player
+///    data, so most ads never start.
 /// 3. Cosmetic: CSS that hides ad slots which still render.
-/// 4. Fallback for an ad that gets through: mute it, run it at 16x and press skip with a real click.
+/// 4. Fallback for an ad that gets through: mute it, run it at 16x and ask the app to press skip.
+///    The press itself is platform code (a real click on Mac); handle(_:) only reports where.
 /// Our page script runs in its own content world: YouTube's scripts share the DOM with it but can
-/// neither see nor call the message handler that triggers real clicks.
-/// Not ported: ForceH264 (Apple Silicon decodes VP9 in hardware).
-enum AdBlock {
+/// neither see nor call the message handler.
+public enum AdBlock {
     static let world = WKContentWorld.world(name: "Lumen")
     static let uBOIsolatedWorld = WKContentWorld.world(name: "uBOLite")
     static let handlerName = "miniBrowser"
@@ -19,7 +19,7 @@ enum AdBlock {
     // MARK: Layer 1 — network rules
 
     /// blocklist.txt inside the app bundle; for `swift run` from macos/, ../shared/blocklist.txt.
-    static func blocklistURL() -> URL? {
+    public static func blocklistURL() -> URL? {
         if let path = ProcessInfo.processInfo.environment["MINIBROWSER_BLOCKLIST"] { return URL(fileURLWithPath: path) }
         if let bundled = Bundle.main.url(forResource: "blocklist", withExtension: "txt") { return bundled }
         let dev = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
@@ -29,7 +29,7 @@ enum AdBlock {
 
     /// One block rule per line. Same format as Windows: a bare domain blocks it and all subdomains;
     /// a line containing * or / is a URL pattern where * matches anything.
-    static func rules(from text: String) -> [[String: Any]] {
+    public static func rules(from text: String) -> [[String: Any]] {
         text.split(whereSeparator: \.isNewline).compactMap { raw in
             let line = raw.trimmingCharacters(in: .whitespaces)
             if line.isEmpty || line.hasPrefix("#") { return nil }
@@ -38,7 +38,7 @@ enum AdBlock {
     }
 
     /// WebKit's url-filter is a small regex dialect (no `|`, no `{n}`), matched against the whole URL.
-    static func urlFilter(for line: String) -> String {
+    public static func urlFilter(for line: String) -> String {
         if !line.contains("*") && !line.contains("/") {
             return "^[^:]+://+([^:/]+\\.)?" + escape(line) + "[:/]"
         }
@@ -63,7 +63,7 @@ enum AdBlock {
 
     /// The compiled rule list, or nil when there is no blocklist or it has no rules.
     @MainActor
-    static func compileRules(store: WKContentRuleListStore? = nil) async throws -> WKContentRuleList? {
+    public static func compileRules(store: WKContentRuleListStore? = nil) async throws -> WKContentRuleList? {
         guard let url = blocklistURL() else { return nil }
         let rules = rules(from: try String(contentsOf: url, encoding: .utf8))
         if rules.isEmpty { return nil }
@@ -73,35 +73,20 @@ enum AdBlock {
 
     // MARK: Layer 2 — uBlock Origin Lite scriptlets
 
-    /// uBO Lite's folder: inside the app bundle, or for `swift run` from macos/, the Windows copy.
-    static func uBOFolder() -> URL? {
-        if let bundled = Bundle.main.url(forResource: "uBOLite", withExtension: nil) { return bundled }
-        let dev = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("../windows/Extensions/uBOLite").standardized
-        return FileManager.default.fileExists(atPath: dev.path) ? dev : nil
-    }
-
-    static func uBOVersion() -> String? {
-        guard let manifest = uBOFolder()?.appendingPathComponent("manifest.json"),
-              let data = try? Data(contentsOf: manifest),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        return json["version"] as? String
-    }
-
-    /// The rulesets that hold uBO's YouTube rules. Each world gets scriptlet-begin + these +
-    /// scriptlet-end in one script, the way uBO Lite registers them; the files need no extension API.
-    static let uBORulesets = ["ublock-filters", "ublock-experimental"]
+    /// The uBO Lite copy this run uses, picked once at the first page so a download during the run
+    /// cannot mix versions; a newer download is used from the next start.
+    public static let uBOCopy: UBOLite.Copy? = UBOLite.newest()
 
     /// One script per world (main = the page's own, isolated = uBO's DOM-only scriptlets), or none
-    /// when uBO Lite is missing. Wrapped so they only run on YouTube, not on sign-in or other pages.
-    static func uBOScripts() -> [(source: String, world: WKContentWorld)] {
-        guard let folder = uBOFolder() else { return [] }
+    /// when there is no uBO copy. Wrapped so they only run on YouTube, not on sign-in or other pages.
+    static let uBOScripts: [(source: String, world: WKContentWorld)] = uBOCopy.map(scripts(from:)) ?? []
+
+    public static func scripts(from copy: UBOLite.Copy) -> [(source: String, world: WKContentWorld)] {
         var out: [(String, WKContentWorld)] = []
         for (name, world) in [("main", WKContentWorld.page), ("isolated", uBOIsolatedWorld)] {
-            let dir = folder.appendingPathComponent("rulesets/scripting/scriptlet/\(name)")
-            let files = ["scriptlet-begin"] + uBORulesets + ["scriptlet-end"]
-            let parts = files.compactMap { try? String(contentsOf: dir.appendingPathComponent("\($0).js"), encoding: .utf8) }
-            guard parts.count == files.count else { continue }
+            let paths = UBOLite.scriptPaths(world: name)
+            let parts = paths.compactMap { try? String(contentsOf: copy.folder.appendingPathComponent($0), encoding: .utf8) }
+            guard parts.count == paths.count else { continue }
             out.append(("if (/(^|\\.)youtube\\.com$/.test(location.hostname)) {\n" + parts.joined(separator: "\n") + "\n}", world))
         }
         return out
@@ -111,10 +96,10 @@ enum AdBlock {
 
     /// Adds every layer to a configuration, before the WKWebView is created from it.
     @MainActor
-    static func attach(to config: WKWebViewConfiguration, rules: WKContentRuleList?, handler: WKScriptMessageHandler) {
+    public static func attach(to config: WKWebViewConfiguration, rules: WKContentRuleList?, handler: WKScriptMessageHandler) {
         let content = config.userContentController
         if let rules { content.add(rules) }
-        for (source, world) in uBOScripts() {
+        for (source, world) in uBOScripts {
             content.addUserScript(WKUserScript(source: source, injectionTime: .atDocumentStart,
                                                forMainFrameOnly: false, in: world))
         }
@@ -123,44 +108,27 @@ enum AdBlock {
         content.add(handler, contentWorld: world, name: handlerName)
     }
 
-    enum Event { case adStart, skipClicked, skipMissed }
+    public enum Event: Equatable, Sendable {
+        case adStart
+        /// Press YouTube's skip button at this point: CSS pixels from the viewport's top-left.
+        case skip(x: Double, y: Double)
+    }
 
-    /// Acts on a message from the page script. Only YouTube's top frame is listened to.
+    /// Reads a message from the page script. Only YouTube's top frame is listened to.
     @MainActor
-    static func handle(_ message: WKScriptMessage) -> Event? {
+    public static func handle(_ message: WKScriptMessage) -> Event? {
         let host = message.frameInfo.securityOrigin.host
         guard message.frameInfo.isMainFrame, host == "youtube.com" || host.hasSuffix(".youtube.com"),
-              let webView = message.webView,
               let body = message.body as? [String: Any], let type = body["type"] as? String else { return nil }
         switch type {
         case "ad-start":
             return .adStart
         case "skip-ad":
             guard let x = (body["x"] as? NSNumber)?.doubleValue, let y = (body["y"] as? NSNumber)?.doubleValue else { return nil }
-            return realClick(in: webView, x: x, y: y) ? .skipClicked : .skipMissed
+            return .skip(x: x, y: y)
         default:
             return nil
         }
-    }
-
-    /// Clicks at a point the page reported (CSS pixels from the viewport's top-left) with real mouse
-    /// events. YouTube ignores script clicks on the skip button but accepts these.
-    @MainActor
-    static func realClick(in webView: WKWebView, x: Double, y: Double) -> Bool {
-        let scale = webView.pageZoom * webView.magnification
-        var point = NSPoint(x: x * scale, y: y * scale)
-        if !webView.isFlipped { point.y = webView.bounds.height - point.y }
-        guard webView.bounds.contains(point), let window = webView.window else { return false }
-        let inWindow = webView.convert(point, to: nil)
-        for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-            guard let event = NSEvent.mouseEvent(
-                with: type, location: inWindow, modifierFlags: [],
-                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
-                context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0
-            ) else { return false }
-            if type == .leftMouseDown { webView.mouseDown(with: event) } else { webView.mouseUp(with: event) }
-        }
-        return true
     }
 
     static let pageScript = """
@@ -226,9 +194,10 @@ enum AdBlock {
 /// Lets a configuration hold a message handler before the object that handles it exists, and
 /// without the configuration keeping that object alive.
 @MainActor
-final class ScriptMessageRelay: NSObject, WKScriptMessageHandler {
-    var onMessage: ((WKScriptMessage) -> Void)?
-    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+public final class ScriptMessageRelay: NSObject, WKScriptMessageHandler {
+    public var onMessage: ((WKScriptMessage) -> Void)?
+    public override init() { super.init() }
+    public func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         onMessage?(message)
     }
 }

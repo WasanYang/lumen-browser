@@ -3,3 +3,5 @@ obj/
 /windows/installer/Output
 /macos/.build
 /macos/build
+.swiftpm/
+.build/

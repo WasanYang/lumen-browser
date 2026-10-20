@@ -1,9 +1,11 @@
 import AppKit
+import LumenCore
 import WebKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var browser: BrowserWindowController?
+    var checkTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MainMenu.build()
@@ -27,6 +29,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let browser = BrowserWindowController(rules: rules, url: start)
             browser.showWindow(nil)
             self.browser = browser
+            // Only looks for a newer uBO Lite (at most once a day); the green dot on the button shows the
+            // result and the owner decides when to download. The hourly timer covers long listening sessions.
+            if await UBOLiteUpdater.checkIfDue() { browser.refreshUBOButton() }
+            self.checkTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { _ in
+                Task { @MainActor in if await UBOLiteUpdater.checkIfDue() { browser.refreshUBOButton() } }
+            }
         }
     }
 
@@ -49,7 +57,11 @@ enum MainMenu {
             holder.submenu = menu
             main.addItem(holder)
         }
-        submenu("Lumen", [item("ออกจาก Lumen", #selector(NSApplication.terminate(_:)), "q")])
+        submenu("Lumen", [
+            item("อัปเดต uBlock Origin Lite…", #selector(BrowserWindowController.updateUBlock(_:)), ""),
+            .separator(),
+            item("ออกจาก Lumen", #selector(NSApplication.terminate(_:)), "q"),
+        ])
         // Without an Edit menu, ⌘C/⌘V do nothing in the address bar or on pages.
         submenu("แก้ไข", [
             item("เลิกทำ", Selector(("undo:")), "z"),
