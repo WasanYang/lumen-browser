@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>MiniBrowser</AssemblyName>
     <RootNamespace>MiniBrowser</RootNamespace>
-    <ApplicationIcon>Assets\logo.ico</ApplicationIcon>
+    <ApplicationIcon>..\shared\Assets\logo.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,11 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="Assets\logo.ico" />
+    <Resource Include="..\shared\Assets\logo.ico" Link="Assets\logo.ico" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="blocklist.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\shared\blocklist.txt" Link="blocklist.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Extensions\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

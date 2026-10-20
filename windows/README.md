@@ -1,16 +1,19 @@
-# MiniBrowser
+# MiniBrowser สำหรับ Windows
 
 Browser มินิมอลสำหรับ Windows (C# + WPF + WebView2) พร้อมตัวบล็อกโฆษณาในตัว
+ไฟล์ที่ใช้ร่วมกับเครื่องอื่น (โลโก้, `blocklist.txt`) อยู่ใน [`../shared`](../shared)
 
 ## สิ่งที่ต้องมี
 - .NET 10 SDK: `winget install Microsoft.DotNet.SDK.10`
 - WebView2 Runtime (มีใน Windows 11 อยู่แล้ว)
 
 ## รัน
+ทุกคำสั่งรันจากโฟลเดอร์ `windows`
 ```
 dotnet run -c Release
 ```
-ทำเป็นไฟล์ .exe ไฟล์เดียว:
+ทำเป็นไฟล์ .exe ไฟล์เดียว (ลบโฟลเดอร์ `bin\Release\net10.0-windows\win-x64\publish` ก่อนทุกครั้ง
+เพราะ publish ซ้ำทับโฟลเดอร์เดิมจะทำให้ `WebView2Loader.dll`, `blocklist.txt` และ `Extensions` หายไป):
 ```
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
 ```
@@ -31,7 +34,7 @@ powershell -ExecutionPolicy Bypass -File installer\build.ps1
 | F11 | เต็มจอ |
 
 ## ตัวบล็อกโฆษณา (`AdBlock.cs`)
-1. **บล็อกที่ต้นทาง**: แก้รายการได้ใน `blocklist.txt` (แก้แล้วเปิดโปรแกรมใหม่)
+1. **บล็อกที่ต้นทาง**: แก้รายการได้ใน [`../shared/blocklist.txt`](../shared/blocklist.txt) (แก้แล้ว build และเปิดโปรแกรมใหม่)
 2. **ซ่อนช่องโฆษณา**: CSS ใน `PageScript`
 3. **YouTube**: ถ้ามีโฆษณาวิดีโอ จะปิดเสียง เร่งเป็น 16 เท่า และกดปุ่มข้ามให้อัตโนมัติ
 
