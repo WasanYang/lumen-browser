@@ -38,7 +38,12 @@ Monorepo: one folder per platform, shared files in `shared/`.
   Verify with `build/Lumen.app/Contents/MacOS/Lumen --selftest` (must print ALL PASSED).
   Goal (owner, 20 Oct 2026): listen to music on YouTube only. Other browsers carry too many tools and feel slow, so keep
   the Mac app small; no site-wide filter lists or features unrelated to YouTube.
-- `ios/`: not started. The plan is in `ios/README.md` (Swift + WKWebView, XcodeGen `project.yml`).
+- `ios/`: **Lumen** for iPhone and iPad (one universal app, iOS 17+), Swift + UIKit + WKWebView, using `LumenCore`.
+  `project.yml` (XcodeGen; `Lumen.xcodeproj` and `Generated/` are generated, not committed), `build.sh sim [--selftest]
+  | device`, `Sources/Lumen/` (`LumenApp.swift` audio session, `BrowserViewController.swift` web view, ⋯ menu,
+  uBO update, background play; `FloatingBar.swift` the Safari-style bar the owner asked for instead of a toolbar; `SelfTestView.swift` runs `SelfTestCore`). Bundle ID `io.github.wasanyang.lumen`,
+  the owner's free personal team `4UWS4ZVGMD` (apps expire after 7 days; re-run `build.sh device`).
+  Shared build helpers: `shared/copy-ubo.sh` (uBO files) and `shared/Assets/make-icon.swift mac|ios`.
 
 ## Windows build
 - Run: `dotnet run -c Release` in `windows/`.
@@ -82,6 +87,16 @@ Monorepo: one folder per platform, shared files in `shared/`.
   `ublock-filters` and `ublock-experimental`. They include `adjustSetTimeout ["[native code]","17000","0.001"]`
   (cuts YouTube's 17 s wait) and `set-constant ytInitialPlayerResponse.adPlacements undefined` (key stays, value undefined).
   To list what runs on a host, run the files in Node with stub globals and log `functionRefs` calls.
+
+## Measured facts — iOS (20 Oct 2026, Xcode 27.1, iOS 27 simulator; owner's iPhone 17 runs iOS 26.6.2)
+- uBO rules per host (run the scriptlet files in Node with stub globals): www.youtube.com 31 main + 3 isolated,
+  m.youtube.com 8 main, music.youtube.com 7. m.youtube.com has no `adjustSetTimeout 17000`.
+- Simulator, real YouTube, signed out: m.youtube.com played 2 of 2 test videos with no ads, start about 6 s.
+  m.youtube.com autoplays muted until the user taps.
+- When the app goes to the background, WebKit pauses the <video> itself (pause event with no page `pause()` call),
+  even with sound on and `document.hidden` faked. Calling `play()` from the app 0.3 s after
+  `didEnterBackground` resumed it and it kept playing (simulator). A muted video is not allowed to play on.
+- The Simulator app is not in Xcode 27.1's bundle; `simctl` runs the app headless and `--console-pty` prints its output.
 
 ## Next steps the owner has in mind
 1. iOS app on a Mac: background playback, ad blocking, persistent login (see `ios/README.md`).

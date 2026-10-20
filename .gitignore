@@ -5,3 +5,6 @@ obj/
 /macos/build
 .swiftpm/
 .build/
+/ios/build
+/ios/Generated
+/ios/Lumen.xcodeproj
