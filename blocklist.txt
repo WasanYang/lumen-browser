@@ -1,0 +1,44 @@
+# One entry per line. A bare domain blocks it and all subdomains.
+# A line containing * or / is used as-is as a WebView2 URL pattern.
+# Edit freely, then restart the browser.
+
+# --- Google ad network ---
+doubleclick.net
+googlesyndication.com
+googleadservices.com
+adservice.google.com
+2mdn.net
+
+# --- YouTube ad/tracking endpoints (video itself is untouched) ---
+*://*.youtube.com/pagead/*
+*://*.youtube.com/api/stats/ads*
+*://*.youtube.com/ptracking*
+*://*.youtube.com/get_midroll_*
+
+# --- Common ad exchanges ---
+adnxs.com
+adsrvr.org
+amazon-adsystem.com
+criteo.com
+criteo.net
+pubmatic.com
+rubiconproject.com
+openx.net
+casalemedia.com
+adform.net
+smartadserver.com
+teads.tv
+yieldmo.com
+media.net
+taboola.com
+outbrain.com
+popads.net
+propellerads.com
+exoclick.com
+
+# --- Ad verification / tracking ---
+moatads.com
+adsafeprotected.com
+doubleverify.com
+scorecardresearch.com
+quantserve.com
