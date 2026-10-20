@@ -11,6 +11,8 @@ namespace MiniBrowser;
 /// - bundled:    &lt;app&gt;\Extensions\&lt;name&gt;\
 /// - downloaded: &lt;profile&gt;\Extensions\&lt;name&gt;\&lt;version&gt;\  (written by the update button)
 /// An extension is reinstalled only when its version changes, so its own settings survive restarts.
+/// Installs happen only at startup: swapping an extension while pages are open left WebView2's
+/// network stuck until restart (tested), so the update button just downloads.
 /// </summary>
 static class Extensions
 {
@@ -24,7 +26,19 @@ static class Extensions
     public static async Task InstallAsync(CoreWebView2Profile profile, string dataDir)
     {
         foreach (var (key, dir, version) in FindNewest(dataDir))
+        {
             await EnsureInstalledAsync(profile, dataDir, key, dir, version);
+            DeleteOldDownloads(dataDir, key, keep: dir);
+        }
+    }
+
+    /// The newest downloaded version waiting to be installed at the next start, or null.
+    public static Version? PendingVersion(string dataDir, string key)
+    {
+        var downloaded = FindNewest(dataDir).FirstOrDefault(f => f.Key == key);
+        var installed = InstalledVersion(dataDir, key);
+        return downloaded.Dir is not null && (installed is null || downloaded.Version > installed)
+            ? downloaded.Version : null;
     }
 
     /// The version currently installed in the profile, or null if none.
@@ -36,9 +50,9 @@ static class Extensions
         return parts.Length == 2 && Version.TryParse(parts[1], out var v) ? v : null;
     }
 
-    /// Downloads the latest uBO Lite (Edge build) from its GitHub releases and installs it
-    /// right away. Returns a message for the user.
-    public static async Task<string> UpdateUBlockAsync(CoreWebView2Profile profile, string dataDir)
+    /// Downloads the latest uBO Lite (Edge build) from its GitHub releases; it is installed at
+    /// the next start. Returns a message for the user.
+    public static async Task<string> DownloadUBlockUpdateAsync(string dataDir)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("MiniBrowser");
@@ -55,6 +69,8 @@ static class Extensions
         var current = InstalledVersion(dataDir, UBlockKey);
         if (current is not null && latest <= current)
             return $"uBO Lite เป็นรุ่นล่าสุดแล้ว ({current})";
+        if (PendingVersion(dataDir, UBlockKey) is { } pending && latest <= pending)
+            return $"ดาวน์โหลดรุ่น {pending} ไว้แล้ว ปิดแล้วเปิด MiniBrowser ใหม่เพื่อเริ่มใช้";
 
         // Extract next to the final folder first, so a failed download never leaves a half folder.
         var target = Path.Combine(UpdatesFolder(dataDir), UBlockKey, latest.ToString());
@@ -69,11 +85,8 @@ static class Extensions
         }
         if (Directory.Exists(target)) Directory.Delete(target, true);
         Directory.Move(temp, target);
-
-        await EnsureInstalledAsync(profile, dataDir, UBlockKey, target, latest);
-        DeleteOldDownloads(dataDir, UBlockKey, keep: target);
-        return $"อัปเดต uBO Lite เป็นรุ่น {latest} แล้ว (เดิม {current?.ToString() ?? "-"})\n" +
-               "กด F5 ที่หน้าเว็บที่เปิดอยู่เพื่อให้รุ่นใหม่มีผล";
+        return $"ดาวน์โหลด uBO Lite รุ่น {latest} แล้ว (ตอนนี้ใช้ {current?.ToString() ?? "-"})\n" +
+               "ปิดแล้วเปิด MiniBrowser ใหม่เพื่อเริ่มใช้รุ่นใหม่";
     }
 
     static async Task EnsureInstalledAsync(CoreWebView2Profile profile, string dataDir, string key, string dir, Version version)
@@ -94,16 +107,18 @@ static class Extensions
 
     static IEnumerable<(string Key, string Dir, Version Version)> FindNewest(string dataDir)
     {
+        // Downloads are listed first so they win a version tie (MaxBy keeps the first maximum);
+        // otherwise startup cleanup could delete the folder the installed extension runs from.
         var found = new List<(string Key, string Dir, Version Version)>();
-        if (Directory.Exists(BundledFolder))
-            foreach (var dir in Directory.GetDirectories(BundledFolder))
-                if (ReadVersion(dir) is { } v) found.Add((Path.GetFileName(dir), dir, v));
-
         var updates = UpdatesFolder(dataDir);
         if (Directory.Exists(updates))
             foreach (var keyDir in Directory.GetDirectories(updates))
                 foreach (var dir in Directory.GetDirectories(keyDir))
                     if (ReadVersion(dir) is { } v) found.Add((Path.GetFileName(keyDir), dir, v));
+
+        if (Directory.Exists(BundledFolder))
+            foreach (var dir in Directory.GetDirectories(BundledFolder))
+                if (ReadVersion(dir) is { } v) found.Add((Path.GetFileName(dir), dir, v));
 
         return found.GroupBy(f => f.Key, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.MaxBy(f => f.Version));
@@ -120,7 +135,9 @@ static class Extensions
 
     static void DeleteOldDownloads(string dataDir, string key, string keep)
     {
-        foreach (var dir in Directory.GetDirectories(Path.Combine(UpdatesFolder(dataDir), key)))
+        var folder = Path.Combine(UpdatesFolder(dataDir), key);
+        if (!Directory.Exists(folder)) return;
+        foreach (var dir in Directory.GetDirectories(folder))
         {
             if (string.Equals(dir, keep, StringComparison.OrdinalIgnoreCase)) continue;
             try { Directory.Delete(dir, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }

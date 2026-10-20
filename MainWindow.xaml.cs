@@ -206,13 +206,12 @@ public partial class MainWindow : Window
 
     async void UpdateUBlock_Click(object sender, RoutedEventArgs e)
     {
-        if (_current?.View.CoreWebView2 is not { } core) return;
+        if (_dataDir.Length == 0) return;
         UBlockButton.IsEnabled = false;
-        UBlockButton.Content = "กำลังอัปเดต…";
+        UBlockButton.Content = "กำลังตรวจสอบ…";
         try
         {
-            if (_extensionsInstalled is not null) await _extensionsInstalled;
-            var message = await Extensions.UpdateUBlockAsync(core.Profile, _dataDir);
+            var message = await Extensions.DownloadUBlockUpdateAsync(_dataDir);
             MessageBox.Show(this, message, "uBlock Origin Lite");
         }
         catch (Exception ex)
@@ -231,7 +230,9 @@ public partial class MainWindow : Window
     void RefreshUBlockTooltip()
     {
         var version = Extensions.InstalledVersion(_dataDir, Extensions.UBlockKey);
-        UBlockButton.ToolTip = $"อัปเดต uBlock Origin Lite (ตอนนี้ใช้รุ่น {version?.ToString() ?? "-"})";
+        var pending = Extensions.PendingVersion(_dataDir, Extensions.UBlockKey);
+        UBlockButton.ToolTip = $"อัปเดต uBlock Origin Lite (ตอนนี้ใช้รุ่น {version?.ToString() ?? "-"})" +
+            (pending is null ? "" : $"\nรุ่น {pending} จะเริ่มใช้เมื่อเปิดโปรแกรมใหม่");
     }
 
     void UrlBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) =>

@@ -34,8 +34,10 @@ dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile
 
 ## uBlock Origin Lite
 โหลดอัตโนมัติจากโฟลเดอร์ `Extensions\uBOLite` (โฟลเดอร์ย่อยใดๆ ใน `Extensions` ที่มี `manifest.json` จะถูกติดตั้งเป็น extension)
-- **อัปเดต:** ดาวน์โหลดไฟล์ `uBOLite_<version>.edge.zip` รุ่นใหม่จาก https://github.com/uBlockOrigin/uBOL-home/releases
-  แตกไฟล์ทับโฟลเดอร์ `Extensions\uBOLite` แล้ว build ใหม่ โปรแกรมจะติดตั้งให้เองเมื่อเห็นเวอร์ชันเปลี่ยน
+- **อัปเดต:** กดปุ่ม **↻ uBO** บนแถบด้านบน (ชี้เมาส์ค้างเพื่อดูรุ่นที่ใช้อยู่) โปรแกรมจะดาวน์โหลดรุ่นล่าสุด
+  (`.edge.zip`) จาก https://github.com/uBlockOrigin/uBOL-home/releases มาเก็บไว้ในโปรไฟล์ แล้วติดตั้งตอนเปิดโปรแกรมครั้งถัดไป
+  (ไม่ติดตั้งระหว่างที่โปรแกรมเปิดอยู่ เพราะทดสอบแล้วพบว่าทำให้เน็ตของ WebView2 ค้างจนกว่าจะปิดโปรแกรม)
+- หรืออัปเดตด้วยมือ: แตกไฟล์รุ่นใหม่ทับโฟลเดอร์ `Extensions\uBOLite` แล้ว build ใหม่ ระหว่างรุ่นที่แถมมากับรุ่นที่ดาวน์โหลด รุ่นใหม่กว่าจะถูกใช้
 - **ปิด:** ลบหรือย้ายโฟลเดอร์ `Extensions\uBOLite` ออก
 - เมื่อใช้คู่กัน ระบบกดข้ามโฆษณาของเราจะเป็นตัวสำรอง ทำงานเฉพาะเมื่อมีโฆษณาหลุดมา
 
