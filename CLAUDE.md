@@ -14,6 +14,17 @@ Monorepo: one folder per platform, shared files in `shared/`.
   `installer/` holds the Inno Setup script and `build.ps1`.
 - `shared/`: `Assets/` (logo.svg, logo-mark.svg, logo.ico) and `blocklist.txt`. The csproj links both
   (`blocklist.txt` is copied next to the exe, `logo.ico` is the window/exe icon).
+- `macos/`: the Mac app is named **Lumen** (owner, 20 Oct 2026; Windows keeps MiniBrowser until the owner renames it
+  there). The bundle ID stays `io.github.wasanyang.minibrowser` because YouTube logins are stored under it.
+  One window. Swift package `Lumen` built with the Command Line Tools only (no Xcode on the owner's Mac yet).
+  `AdBlock.swift` (blocklist.txt → WKContentRuleList, uBO Lite's YouTube scriptlets, page CSS, fallback skip with real
+  NSEvent clicks; meant to be reused by iOS), `BrowserWindow.swift`, `SelfTest.swift`. Build `macos/build.sh` →
+  `macos/build/Lumen.app` (copies the uBO scriptlet files from `windows/Extensions/uBOLite`, renders the icon
+  from `shared/Assets/logo.svg` with `make-icon.swift`). `build.sh --install` replaces `/Applications/Lumen.app`,
+  which the owner uses day to day.
+  Verify with `build/Lumen.app/Contents/MacOS/Lumen --selftest` (must print ALL PASSED).
+  Goal (owner, 20 Oct 2026): listen to music on YouTube only. Other browsers carry too many tools and feel slow, so keep
+  the Mac app small; no site-wide filter lists or features unrelated to YouTube.
 - `ios/`: not started. The plan is in `ios/README.md` (Swift + WKWebView, XcodeGen `project.yml`).
 
 ## Windows build
@@ -38,6 +49,26 @@ Monorepo: one folder per platform, shared files in `shared/`.
   - Capture-phase `stopImmediatePropagation` of mouseenter/over/move + pointer* on the whole card
     (`ytd-video-renderer, ytd-rich-item-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, yt-lockup-view-model, ytd-reel-item-renderer`)
     → 0 KB, ⋮ menu and click-to-play still work. Not yet implemented (owner deferred). Planned as an `AdBlock.DisableHoverPreview` flag.
+
+## Measured facts — macOS (20 Oct 2026, macOS 26.6, Apple Silicon)
+- WKContentRuleList built from blocklist.txt blocks every ad URL in the self-test while the same URLs load without it.
+  WebKit's url-filter has no `|` or `{n}`; a bare domain becomes `^[^:]+://+([^:/]+\.)?domain[:/]`.
+- `NSEvent` mouse down/up passed straight to `WKWebView.mouseDown/mouseUp` give `isTrusted = true` clicks,
+  also while the app is hidden. So the Windows skip-click approach works on Mac without DevTools.
+- The page script runs in a named WKContentWorld; DOM changes (mute, playbackRate) still reach YouTube's player.
+- Google sign-in works in WKWebView with `applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"` (owner tested).
+- Real YouTube, signed out, 7 popular music videos (probe in a scratch copy, not in the repo):
+  - Our own layers only (16x + skip click): ads in 6 of 7. Skippable ads were skipped within ~1 s, but YouTube's
+    non-skippable 6 s / 15 s ads have no skip button, so they only ran fast. The owner did not want that.
+  - Our own prune (`JSON.parse` / `Response.json` override): no ads, but video start 13–17 s after page load.
+  - uBO Lite scriptlets (current build): no ads in 7 of 7, every video played, start 8–15 s after page load.
+    DuckDuckGo for Mac (also WKWebView) uses the same uBO lists and says its blocker adds some buffering too.
+    Owner tested it signed in (20 Oct 2026): works, start delay acceptable, feels better than DuckDuckGo.
+- uBO Lite's built scriptlet files (`rulesets/scripting/scriptlet/{main,isolated}/`) need no extension API: run
+  `scriptlet-begin.js` + ruleset files + `scriptlet-end.js` in one world at document start. YouTube rules are in
+  `ublock-filters` and `ublock-experimental`. They include `adjustSetTimeout ["[native code]","17000","0.001"]`
+  (cuts YouTube's 17 s wait) and `set-constant ytInitialPlayerResponse.adPlacements undefined` (key stays, value undefined).
+  To list what runs on a host, run the files in Node with stub globals and log `functionRefs` calls.
 
 ## Next steps the owner has in mind
 1. iOS app on a Mac: background playback, ad blocking, persistent login (see `ios/README.md`).
