@@ -144,7 +144,8 @@ sealed class AdBlock(List<string> patterns)
               if (!video.muted) { video.muted = true; mutedByUs = true; }
               if (savedRate === null) savedRate = video.playbackRate;
               if (video.playbackRate !== 16) video.playbackRate = 16;
-              if (video.paused && !video.ended && video.readyState > 0) video.play().catch(() => {});
+              const atEnd = video.ended || video.currentTime >= video.duration - 0.5;
+              if (video.paused && !atEnd && video.readyState > 0) video.play().catch(() => {});
             } else {
               if (mutedByUs) { video.muted = false; mutedByUs = false; }
               // Only undo our 16x; leave any speed YouTube applied to the real video.

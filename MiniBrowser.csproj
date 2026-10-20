@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <None Update="blocklist.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Extensions\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

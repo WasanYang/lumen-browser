@@ -30,6 +30,8 @@ public partial class MainWindow : Window
     readonly DispatcherTimer _sleepTimer = new() { Interval = TimeSpan.FromMinutes(1) };
     Tab? _current;
     CoreWebView2Environment _env = null!;
+    string _dataDir = "";
+    Task? _extensionsInstalled;
     AdBlock _adBlock = null!;
     bool _fullScreen;
     WindowState _stateBeforeFullScreen;
@@ -40,9 +42,10 @@ public partial class MainWindow : Window
         SourceInitialized += (_, _) => UseDarkTitleBar();
         Loaded += async (_, _) =>
         {
-            var dataDir = Environment.GetEnvironmentVariable("MINIBROWSER_DATA") ?? Path.Combine(
+            _dataDir = Environment.GetEnvironmentVariable("MINIBROWSER_DATA") ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MiniBrowser");
-            _env = await CoreWebView2Environment.CreateAsync(null, dataDir);
+            _env = await CoreWebView2Environment.CreateAsync(null, _dataDir,
+                new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true });
             _adBlock = AdBlock.Load(Path.Combine(AppContext.BaseDirectory, "blocklist.txt"));
             await NewTab(Environment.GetCommandLineArgs().Skip(1).FirstOrDefault() ?? HomeUrl);
         };
@@ -67,6 +70,11 @@ public partial class MainWindow : Window
         await view.EnsureCoreWebView2Async(_env);
         var core = view.CoreWebView2;
         core.Settings.IsStatusBarEnabled = false;
+        // Extensions live in the shared profile, so install them once, before the first page loads.
+        _extensionsInstalled ??= Extensions.InstallAsync(core.Profile, _dataDir);
+        try { await _extensionsInstalled; }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Extension install failed: {ex}"); }
+        RefreshUBlockTooltip();
         await _adBlock.AttachAsync(core, _env);
 
         core.DocumentTitleChanged += (_, _) =>
@@ -195,6 +203,36 @@ public partial class MainWindow : Window
     }
 
     void NewTab_Click(object sender, RoutedEventArgs e) => _ = NewTab(null);
+
+    async void UpdateUBlock_Click(object sender, RoutedEventArgs e)
+    {
+        if (_current?.View.CoreWebView2 is not { } core) return;
+        UBlockButton.IsEnabled = false;
+        UBlockButton.Content = "กำลังอัปเดต…";
+        try
+        {
+            if (_extensionsInstalled is not null) await _extensionsInstalled;
+            var message = await Extensions.UpdateUBlockAsync(core.Profile, _dataDir);
+            MessageBox.Show(this, message, "uBlock Origin Lite");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"อัปเดตไม่สำเร็จ: {ex.Message}", "uBlock Origin Lite",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            UBlockButton.Content = "↻ uBO";
+            UBlockButton.IsEnabled = true;
+            RefreshUBlockTooltip();
+        }
+    }
+
+    void RefreshUBlockTooltip()
+    {
+        var version = Extensions.InstalledVersion(_dataDir, Extensions.UBlockKey);
+        UBlockButton.ToolTip = $"อัปเดต uBlock Origin Lite (ตอนนี้ใช้รุ่น {version?.ToString() ?? "-"})";
+    }
 
     void UrlBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) =>
         Dispatcher.BeginInvoke(UrlBox.SelectAll);

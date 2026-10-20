@@ -32,6 +32,13 @@ dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile
 ถ้าไม่อยากเห็นโฆษณาแวบขึ้นมาเลย ให้ตั้ง `AdBlock.PruneYouTubeAds = true` เพื่อลบข้อมูลโฆษณาออกจากข้อมูลของเครื่องเล่น
 แต่ YouTube จะจับได้และหน่วงการเริ่มวิดีโอ (วัดได้ช้าขึ้นราว 3–13 วินาที)
 
+## uBlock Origin Lite
+โหลดอัตโนมัติจากโฟลเดอร์ `Extensions\uBOLite` (โฟลเดอร์ย่อยใดๆ ใน `Extensions` ที่มี `manifest.json` จะถูกติดตั้งเป็น extension)
+- **อัปเดต:** ดาวน์โหลดไฟล์ `uBOLite_<version>.edge.zip` รุ่นใหม่จาก https://github.com/uBlockOrigin/uBOL-home/releases
+  แตกไฟล์ทับโฟลเดอร์ `Extensions\uBOLite` แล้ว build ใหม่ โปรแกรมจะติดตั้งให้เองเมื่อเห็นเวอร์ชันเปลี่ยน
+- **ปิด:** ลบหรือย้ายโฟลเดอร์ `Extensions\uBOLite` ออก
+- เมื่อใช้คู่กัน ระบบกดข้ามโฆษณาของเราจะเป็นตัวสำรอง ทำงานเฉพาะเมื่อมีโฆษณาหลุดมา
+
 ถ้าการ์ดจอเก่าแล้ว YouTube กระตุก ให้ตั้ง `AdBlock.ForceH264 = true`
 
 ## ประหยัดทรัพยากร

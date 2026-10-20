@@ -42,6 +42,7 @@
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="360" />
       </Grid.ColumnDefinitions>
 
@@ -54,7 +55,11 @@
               Style="{StaticResource TabButton}" Click="NewTab_Click"
               ToolTip="แท็บใหม่ (Ctrl+T)" />
 
-      <TextBox x:Name="UrlBox" Grid.Column="2" Margin="4,5,6,5" Padding="8,0"
+      <Button x:Name="UBlockButton" Grid.Column="2" Content="↻ uBO" Margin="0,4"
+              Style="{StaticResource TabButton}" Click="UpdateUBlock_Click"
+              ToolTip="อัปเดต uBlock Origin Lite" />
+
+      <TextBox x:Name="UrlBox" Grid.Column="3" Margin="4,5,6,5" Padding="8,0"
                Background="#2A2A2A" Foreground="#E0E0E0" CaretBrush="#E0E0E0"
                BorderThickness="0" VerticalContentAlignment="Center"
                KeyDown="UrlBox_KeyDown" GotKeyboardFocus="UrlBox_GotKeyboardFocus" />
