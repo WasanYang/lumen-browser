@@ -49,6 +49,16 @@ Monorepo: one folder per platform, shared files in `shared/`.
   a generic iOS build left a new iPad out of the profile and its install failed (0xe8008012). Devices: AiPhone
   (iPhone 17) and AiPad (iPad Air 5th gen), both iOS 26.6.2; the iPhone installs over Wi-Fi.
   Shared build helpers: `shared/copy-ubo.sh` (uBO files) and `shared/Assets/make-icon.swift mac|ios`.
+- `android/`: **Lumen** for Android phones (21 Oct 2026, prototype), Kotlin + Android WebView, minSdk 29, target 36.
+  Package `io.github.wasanyang.lumen`. Gradle 9.8.2 + AGP 9.4.1 (built-in Kotlin, no Kotlin plugin): Android Studio's
+  JBR is JDK 25, which Gradle 8.x cannot run on. `LumenCore` is Swift, so its logic is ported, not shared:
+  `AdBlock.kt` (blocklist via `shouldInterceptRequest` + `ServiceWorkerClient`, uBO scripts, page script with the
+  same 16x/skip fallback, iOS's background-play script), `UBOLite.kt` (copy picking + GitHub updater),
+  `PlaybackService.kt` (mediaPlayback foreground service, MediaSession, notification), `MainActivity.kt`
+  (`LumenWebView`, bottom bar, ⋯ menu, real skip taps, lifecycle). The build task `copySharedAssets` puts
+  `shared/blocklist.txt` and the uBO files (same list as `copy-ubo.sh`) into the APK assets.
+  Windows build machine: SDK in `%LOCALAPPDATA%\Android\Sdk`, AVD `Lumen_API36` (Pixel 8, Android 16, WebView 133).
+  The owner has no Android device yet; everything so far was tested on the emulator.
 
 ## Windows build
 - Run: `dotnet run -c Release` in `windows/`.
@@ -106,6 +116,21 @@ Monorepo: one folder per platform, shared files in `shared/`.
   `didEnterBackground` (the two were up to 6 s apart in the simulator): gap about 0.05 s. Lock-screen pause goes
   through YouTube's script (`pause()`), so it is not undone.
 - The Simulator app is not in Xcode 27.1's bundle; `simctl` runs the app headless and `--console-pty` prints its output.
+
+## Measured facts — Android (21 Oct 2026, emulator Pixel 8 / Android 16 / WebView 133, signed out)
+- Test from the PC over DevTools: debug builds enable web contents debugging; `adb forward tcp:9222
+  localabstract:webview_devtools_remote_<pid>` (pid from `/proc/net/unix`), then CDP `Runtime.evaluate` from Node.
+- 5 popular music videos on m.youtube.com: no ad in any, all played, `adPlacements` present but `undefined`
+  in all 5 (uBO's set-constant), real video started 8.6–16 s after page load.
+- blocklist: 4 ad URLs got `403 Blocked`, thumbnails and favicon `200`. A skip-ad message with a test button's
+  position gave a click with `isTrusted = true` (MotionEvent sent to the web view).
+- Background play: the **web view itself** pauses a playing video about 2 s after Home (pause event, no page
+  `pause()` call) and pauses again each time the page plays it, so iOS's resume-in-the-page trick alone fails.
+  Passing `View.VISIBLE` to `WebView.onWindowVisibilityChanged` while music plays (`LumenWebView.keepVisible`,
+  set in `onPause`) fixes it: kept playing 20 s after Home and 30 s more with the screen off.
+- Notification / lock-screen pause and play (`cmd media_session dispatch pause|play`) work, and a pause from there
+  is not undone. The media control shows the logo, the song title and play/pause.
+- YouTube's "Open App" button uses intent://, which Lumen ignores (stays in the app).
 
 ## Next steps the owner has in mind
 1. iOS app on a Mac: background playback, ad blocking, persistent login (see `ios/README.md`).

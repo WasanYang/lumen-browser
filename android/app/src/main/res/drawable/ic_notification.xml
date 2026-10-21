@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status bar icon: the logo mark in white (shared/Assets/logo-mark.svg). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="320"
+    android:viewportHeight="320">
+    <group android:translateX="-96" android:translateY="-96">
+        <path
+            android:pathData="M382.06,233.77 A128,128 0 1,1 278.23,129.94"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="44"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M376.51,165.49 a30,30 0 1,0 -60,0 a30,30 0 1,0 60,0z"
+            android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>
