@@ -3,8 +3,10 @@
 # Command Line Tools) and XcodeGen (brew install xcodegen).
 #   ./build.sh sim              build, install and open on the iPhone simulator (SIMULATOR="iPad Pro 11-inch (M5)" for iPad)
 #   ./build.sh sim --selftest   same, then run the self-test in the simulator and print PASS/FAIL
-#   ./build.sh device           build, install and open on the connected iPhone or iPad
-#                               (free Apple ID: the app stops opening after 7 days; run this again)
+#   ./build.sh device           build, install and open on the paired iPhone or iPad
+#                               (DEVICE=iPad ./build.sh device picks the one whose name contains "iPad",
+#                               or give its UDID; --no-launch installs without opening the app.
+#                               Free Apple ID: the app stops opening after 7 days; renew.sh renews it)
 set -euo pipefail
 cd "$(dirname "$0")"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
@@ -38,25 +40,33 @@ sim)
     fi
     ;;
 device)
-    xcodebuild -project Lumen.xcodeproj -scheme Lumen -configuration Release -derivedDataPath build \
-        -destination "generic/platform=iOS" -allowProvisioningUpdates -quiet build
+    # Pick the device first: building for it lets Xcode register a new device with the free team and
+    # put it in the provisioning profile (a generic iOS build left the iPad out and its install failed).
     devices=$(mktemp)
     xcrun devicectl list devices --json-output "$devices" >/dev/null
     device=$(python3 -I -c '
 import json, sys
-# A booted simulator is listed too. A paired device that is not connected yet ("available") is fine:
-# devicectl connects to it for the install.
+# A booted simulator is listed too (a new device may not report "physical" yet, so simulators are what
+# is left out). A paired device that is not connected yet ("available") is fine: devicectl connects to
+# it for the install. DEVICE narrows it down by name (case-insensitive).
+want = sys.argv[2].lower()
 for d in json.load(open(sys.argv[1]))["result"]["devices"]:
-    if d.get("hardwareProperties", {}).get("reality") == "physical" \
-            and d.get("connectionProperties", {}).get("pairingState") == "paired":
-        print(d["identifier"]); break' "$devices")
+    name = d.get("deviceProperties", {}).get("name", "")
+    udid = d.get("hardwareProperties", {}).get("udid", "")
+    if d.get("hardwareProperties", {}).get("reality") != "simulated" \
+            and d.get("connectionProperties", {}).get("pairingState") == "paired" \
+            and (want in name.lower() or want == udid.lower()):
+        print(d["hardwareProperties"]["udid"], d["identifier"]); break' "$devices" "${DEVICE:-}")
     rm -f "$devices"
-    [ -n "$device" ] || { echo "No iPhone/iPad connected: plug it in and unlock it." >&2; exit 1; }
-    xcrun devicectl device install app --device "$device" build/Build/Products/Release-iphoneos/Lumen.app
-    xcrun devicectl device process launch --device "$device" "$bundle_id"
+    [ -n "$device" ] || { echo "No paired iPhone/iPad${DEVICE:+ named *$DEVICE*}: plug it in and unlock it." >&2; exit 1; }
+    read -r udid identifier <<< "$device"
+    xcodebuild -project Lumen.xcodeproj -scheme Lumen -configuration Release -derivedDataPath build \
+        -destination "id=$udid" -allowProvisioningUpdates -allowProvisioningDeviceRegistration -quiet build
+    xcrun devicectl device install app --device "$identifier" build/Build/Products/Release-iphoneos/Lumen.app
+    [ "${2:-}" = --no-launch ] || xcrun devicectl device process launch --device "$identifier" "$bundle_id"
     ;;
 *)
-    echo "usage: ./build.sh sim [--selftest] | device" >&2
+    echo "usage: ./build.sh sim [--selftest] | device [--no-launch]" >&2
     exit 2
     ;;
 esac

@@ -16,11 +16,18 @@
 ./build.sh device           # ติดตั้งและเปิดบน iPhone/iPad ที่เสียบสายอยู่
 ```
 `SIMULATOR="iPad Pro 11-inch (M5)" ./build.sh sim` ใช้ทดสอบบน iPad Simulator
+ถ้าจับคู่ไว้หลายเครื่อง ระบุชื่อเครื่องได้: `DEVICE=iPad ./build.sh device` (เลือกเครื่องที่ชื่อมีคำว่า iPad)
 สคริปต์รวมไฟล์ที่อยู่ที่อื่นใน repo (blocklist, uBO, ไอคอน) ไว้ใน `Generated/` แล้วสร้าง `Lumen.xcodeproj` จาก `project.yml` (ทั้งสองอย่างไม่ได้เก็บใน git)
 
 **บัญชีฟรี**
 - ติดตั้งครั้งแรกแล้วต้องกดเชื่อถือก่อน: Settings → General → VPN & Device Management → Apple Development → Trust
-- แอปเปิดได้ 7 วัน แล้วต้องเสียบสายรัน `./build.sh device` ใหม่ (การล็อกอินยังอยู่)
+- เครื่องใหม่: เปิด Developer Mode แล้วรัน `DEVICE=<ชื่อเครื่อง> ./build.sh device` ครั้งแรก Xcode จะลงทะเบียนเครื่องให้เอง
+- แอปเปิดได้ 7 วันหลังเซ็น จึงมี**ต่ออายุอัตโนมัติ** (`renew.sh`): Mac เช็คทุกวัน 7:30 แล้วติดตั้งใหม่ให้เครื่องที่ต่ออายุครั้งล่าสุดครบ 6 วัน
+  ผ่าน Wi-Fi หรือสาย (การล็อกอินยังอยู่) สำเร็จจะเงียบ ไม่สำเร็จจะมีแจ้งเตือนบน Mac และลองใหม่วันถัดไป
+  - เปิดใช้: `./install-renew.sh` · ปิด: `./install-renew.sh --remove` · สั่งต่ออายุตอนนี้: `./renew.sh`
+  - log: `~/Library/Logs/Lumen/renew.log` · วันที่ต่ออายุล่าสุดของแต่ละเครื่อง: `~/Library/Logs/Lumen/renew-state`
+  - Mac ต้องล็อกอินค้างไว้ (หลับได้ ถ้าหลับตอน 7:30 จะรันตอนตื่น) และมือถืออยู่ Wi-Fi เดียวกับ Mac
+  - ถ้า Lumen เล่นเพลงอยู่ตอนต่ออายุ แอปจะถูกปิดเพื่อติดตั้งตัวใหม่
 
 ## ทำอะไรได้บ้าง
 - เปิด YouTube เต็มจอ iPhone ได้เว็บมือถือ (`m.youtube.com`) iPad ได้เว็บเดสก์ท็อปแบบ Safari บน iPad

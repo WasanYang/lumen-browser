@@ -42,7 +42,12 @@ Monorepo: one folder per platform, shared files in `shared/`.
   `project.yml` (XcodeGen; `Lumen.xcodeproj` and `Generated/` are generated, not committed), `build.sh sim [--selftest]
   | device`, `Sources/Lumen/` (`LumenApp.swift` audio session, `BrowserViewController.swift` web view, ⋯ menu,
   uBO update, background play; `FloatingBar.swift` the Safari-style bar the owner asked for instead of a toolbar; `SelfTestView.swift` runs `SelfTestCore`). Bundle ID `io.github.wasanyang.lumen`,
-  the owner's free personal team `4UWS4ZVGMD` (apps expire after 7 days; re-run `build.sh device`).
+  the owner's free personal team `4UWS4ZVGMD` (apps stop opening 7 days after signing). `renew.sh`, run by launchd
+  daily at 07:30 (`install-renew.sh`), reinstalls on each paired device 6 days after its last renewal (owner's
+  choice, 21 Oct 2026: weekly-ish, one spare day) and posts a Mac notification only when a device fails.
+  `build.sh device` builds for the chosen device (`-destination id=` + `-allowProvisioningDeviceRegistration`):
+  a generic iOS build left a new iPad out of the profile and its install failed (0xe8008012). Devices: AiPhone
+  (iPhone 17) and AiPad (iPad Air 5th gen), both iOS 26.6.2; the iPhone installs over Wi-Fi.
   Shared build helpers: `shared/copy-ubo.sh` (uBO files) and `shared/Assets/make-icon.swift mac|ios`.
 
 ## Windows build
