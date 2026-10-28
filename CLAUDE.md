@@ -43,8 +43,10 @@ Monorepo: one folder per platform, shared files in `shared/`.
   | device`, `Sources/Lumen/` (`LumenApp.swift` audio session, `BrowserViewController.swift` web view, ⋯ menu,
   uBO update, background play; `FloatingBar.swift` the Safari-style bar the owner asked for instead of a toolbar; `SelfTestView.swift` runs `SelfTestCore`). Bundle ID `io.github.wasanyang.lumen`,
   the owner's free personal team `4UWS4ZVGMD` (apps stop opening 7 days after signing). `renew.sh`, run by launchd
-  daily at 07:30 (`install-renew.sh`), reinstalls on each paired device 6 days after its last renewal (owner's
-  choice, 21 Oct 2026: weekly-ish, one spare day) and posts a Mac notification only when a device fails.
+  daily at 00:00 (`install-renew.sh`), reinstalls on each paired device 3 days after its last renewal (owner's
+  choice, 28 Oct 2026, replacing 07:30 / 6 days: more spare nights for failed tries) and posts a Mac notification
+  only when a device fails. On 28 Oct 2026 Xcode had lost its Apple ID (`No Accounts`), so every renewal failed
+  until the owner signed in again in Xcode → Settings → Accounts.
   `build.sh device` builds for the chosen device (`-destination id=` + `-allowProvisioningDeviceRegistration`):
   a generic iOS build left a new iPad out of the profile and its install failed (0xe8008012). Devices: AiPhone
   (iPhone 17) and AiPad (iPad Air 5th gen), both iOS 26.6.2; the iPhone installs over Wi-Fi.

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Makes launchd run renew.sh every day at 07:30 (if the Mac is asleep then, as soon as it wakes).
+# Makes launchd run renew.sh every day at 00:00 (if the Mac is asleep then, as soon as it wakes).
 #   ./install-renew.sh             install or update the schedule
 #   ./install-renew.sh --remove    stop it
 # The schedule file points at this clone, so it lives only in ~/Library/LaunchAgents, not in git.
@@ -31,12 +31,12 @@ cat > "$plist" <<PLIST
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
-        <integer>7</integer>
+        <integer>0</integer>
         <key>Minute</key>
-        <integer>30</integer>
+        <integer>0</integer>
     </dict>
 </dict>
 </plist>
 PLIST
 launchctl bootstrap "gui/$(id -u)" "$plist"
-echo "installed $label: daily at 07:30 → $script"
+echo "installed $label: daily at 00:00 → $script"

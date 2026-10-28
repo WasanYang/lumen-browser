@@ -1,8 +1,8 @@
 #!/bin/bash
 # Keeps Lumen opening on the owner's iPhone and iPad with a free Apple ID, where an app stops opening
-# 7 days after it was signed: reinstalls it on each paired device 6 days after that device's last
-# renewal (owner's choice, 21 Oct 2026; the spare day is for a failed try), over Wi-Fi or cable.
-# launchd runs this every day at 07:30 (install-renew.sh); most days it has nothing to do.
+# 7 days after it was signed: reinstalls it on each paired device 3 days after that device's last
+# renewal (owner's choice, 28 Oct 2026; the spare days are for failed tries), over Wi-Fi or cable.
+# launchd runs this every day at 00:00 (install-renew.sh); most days it has nothing to do.
 # Quiet when it works; a Mac notification when a device could not be renewed. It tries again the next day.
 # Log: ~/Library/Logs/Lumen/renew.log. Last renewal per device: ~/Library/Logs/Lumen/renew-state.
 set -uo pipefail
@@ -17,7 +17,8 @@ touch "$state"
 exec >>"$logs/renew.log" 2>&1
 echo "== $(date '+%Y-%m-%d %H:%M:%S')"
 
-renew_after=$((6 * 24 * 3600))
+# An hour short of 3 days, so the run that falls exactly 3 days later is not skipped by a few seconds.
+renew_after=$((3 * 24 * 3600 - 3600))
 expires_after=$((7 * 24 * 3600))
 now=$(date +%s)
 
@@ -56,6 +57,6 @@ while IFS=$'\t' read -r udid name; do
             when="ยังไม่เคยต่ออายุจากสคริปต์นี้"
         fi
         echo "$name: FAILED ($when)"
-        notify "ต่ออายุบน $name ไม่สำเร็จ" "$when ให้เครื่องอยู่ Wi-Fi เดียวกับ Mac จะลองใหม่พรุ่งนี้ 7:30"
+        notify "ต่ออายุบน $name ไม่สำเร็จ" "$when ให้เครื่องอยู่ Wi-Fi เดียวกับ Mac จะลองใหม่เที่ยงคืนถัดไป"
     fi
 done <<< "$devices"
